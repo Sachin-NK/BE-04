@@ -144,3 +144,61 @@ SELECT * FROM tasks;
 ## AI vs me
 
 See Stage 6 below and the `ai-version/` folder.
+
+---
+
+## Stage 6: AI rematch
+
+### The prompt I wrote
+
+```
+You are a Python backend developer. Build a FastAPI CRUD API for tasks using
+Python and psycopg2 connected to a PostgreSQL database. The database runs in
+Docker. Requirements:
+- Five endpoints: GET /tasks, GET /tasks/{id}, POST /tasks, PUT /tasks/{id},
+  DELETE /tasks/{id}
+- Tasks table: id (serial primary key), title (text), done (boolean)
+- Seed three example tasks only if the table is empty on startup
+- Read the database password from a DATABASE_URL environment variable in a
+  .env file — never hardcode credentials
+- Use parameterized queries (%s placeholders), never string interpolation
+- POST returns 201, DELETE returns 204, unknown id returns 404, blank title
+  returns 400
+- A named Docker volume must persist data across container restarts
+- docker compose up starts both the app and the database
+Write main.py, docker-compose.yml, Dockerfile, and .env.example.
+```
+
+### What the AI got right
+
+- Correct table schema and seed-once logic.
+- Parameterized queries throughout — no string interpolation.
+- Volume defined in compose, so data persists.
+- Status codes correct: 201 on POST, 204 on DELETE, 404 on unknown id, 400 on blank title.
+- Reads `DATABASE_URL` from environment, not hardcoded.
+
+### What the AI got wrong or missed
+
+1. **No healthcheck on the db service.** The `depends_on` just waits for the container to start, not for Postgres to be ready to accept connections. The app will crash on startup if it connects before Postgres is ready. My version uses `condition: service_healthy` with `pg_isready`.
+
+2. **Credentials hardcoded in docker-compose.yml.** The AI put `POSTGRES_PASSWORD: taskpass` directly in the compose file instead of reading from `.env` with `env_file: .env`. Anyone reading the compose file sees the password.
+
+3. **Requirements not pinned.** `fastapi`, `uvicorn`, `psycopg2-binary`, `python-dotenv` with no version numbers. Unpinned deps break silently months later when a new version ships.
+
+4. **PUT accepts a blank title silently.** The AI's `update_task` does not validate `body.title.strip()` — a PUT with `{"title": "   "}` updates the task to a blank title with no error.
+
+5. **`TaskIn` model used for PUT.** The AI reused the same model for create and update, so `done` defaults to `False` on PUT. A PUT with only `{"title": "New title"}` silently resets `done` to False. My version uses a separate `TaskUpdate` model with all optional fields.
+
+### What my prompt missed
+
+I didn't specify that PUT should use a partial update model (all fields optional). The AI's choice to reuse the create model for updates was a reasonable response to an underspecified prompt — and it caused a real bug.
+
+### One rematch
+
+Added to the prompt: "PUT should accept partial updates — title and done are both optional. Only update the fields provided."
+
+On the second run the AI produced a separate `TaskUpdate` model with `Optional` fields and merged them with the existing values before writing — matching what my hand-built version does.
+
+### The lesson
+
+The AI's output was exactly as good as the specification. The healthcheck gap and the credential leak came from things I didn't name in the prompt. The partial-update bug came from a vague requirement. I could only spot all three because I had already built the correct version by hand.
