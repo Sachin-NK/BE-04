@@ -128,16 +128,7 @@ The routes are identical across all three. Storage is an implementation detail â
 
 ## Database screenshot
 
-Add a screenshot of `psql` or DBeaver showing the tasks table here before submitting.
-
-```bash
-# Open psql inside the running container
-docker exec -it task7-db-1 psql -U taskuser -d taskdb
-
-# Then run:
-\dt
-SELECT * FROM tasks;
-```
+![DB screenshot](Screenshot%202026-10-09%20132850.png)
 
 ---
 
